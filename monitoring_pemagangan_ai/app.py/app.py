@@ -1,0 +1,710 @@
+import os
+from datetime import date
+from html import escape
+
+import pandas as pd
+import streamlit as st
+
+st.set_page_config(
+    page_title="AKTI Internship Monitor",
+    page_icon="🎓",
+    layout="wide"
+)
+
+MAHASISWA_PATH = "data/mahasiswa.csv"
+LOGBOOK_PATH = "data/logbook.csv"
+
+MAHASISWA_COLUMNS = [
+    "nama", "nim", "divisi", "pembimbing", "status",
+    "email", "no_hp", "jenis_kelamin", "angkatan",
+    "tempat_lahir", "tanggal_lahir", "alamat", "foto"
+]
+
+LOGBOOK_COLUMNS = ["nama", "tanggal", "kegiatan", "progres", "kendala", "kehadiran"]
+
+
+def load_custom_css():
+    st.markdown(
+        """
+        <style>
+        .block-container {
+            padding-top: 1.2rem;
+            padding-bottom: 2rem;
+        }
+
+        .hero-box {
+            background: linear-gradient(135deg, #7A0019 0%, #9E2135 100%);
+            padding: 1.4rem 1.6rem;
+            border-radius: 18px;
+            color: white;
+            margin-bottom: 1rem;
+            box-shadow: 0 10px 24px rgba(122, 0, 25, 0.12);
+        }
+
+        .hero-title {
+            font-size: 2rem;
+            font-weight: 800;
+            margin-bottom: 0.25rem;
+        }
+
+        .hero-subtitle {
+            font-size: 1rem;
+            opacity: 0.96;
+            margin-bottom: 0.4rem;
+        }
+
+        .hero-chip {
+            display: inline-block;
+            margin-top: 0.55rem;
+            background: rgba(255,255,255,0.16);
+            padding: 0.35rem 0.8rem;
+            border-radius: 999px;
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+
+        .section-title {
+            background: #F7ECEE;
+            color: #4B1020;
+            padding: 0.8rem 1rem;
+            border-left: 6px solid #7A0019;
+            border-radius: 12px;
+            font-weight: 700;
+            margin: 0.2rem 0 1rem 0;
+        }
+
+        .status-pill {
+            display: inline-block;
+            padding: 0.3rem 0.75rem;
+            border-radius: 999px;
+            font-size: 0.82rem;
+            font-weight: 700;
+        }
+
+        .status-aman {
+            background: #E9F7EF;
+            color: #137333;
+        }
+
+        .status-perhatian {
+            background: #FFF4DF;
+            color: #946000;
+        }
+
+        .status-evaluasi {
+            background: #FDEAEA;
+            color: #A61B1B;
+        }
+
+        .student-card {
+            background: white;
+            border: 1px solid #E8D9DD;
+            border-radius: 16px;
+            padding: 1rem;
+            margin-bottom: 0.85rem;
+            box-shadow: 0 4px 12px rgba(122, 0, 25, 0.06);
+        }
+
+        .student-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 0.35rem;
+        }
+
+        .student-name {
+            font-weight: 800;
+            color: #4B1020;
+            font-size: 1.05rem;
+        }
+
+        .student-meta {
+            color: #6D4B53;
+            font-size: 0.92rem;
+            margin-top: 0.15rem;
+        }
+
+        .student-rec {
+            margin-top: 0.75rem;
+            padding: 0.75rem 0.9rem;
+            background: #F9F2F3;
+            border-radius: 12px;
+            color: #4B1020;
+            font-size: 0.93rem;
+        }
+
+        .small-note {
+            color: #6D4B53;
+            font-size: 0.9rem;
+        }
+
+        .avatar-box {
+            width: 120px;
+            height: 120px;
+            border-radius: 999px;
+            background: linear-gradient(135deg, #7A0019 0%, #B44A5E 100%);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            font-weight: 800;
+            margin: 0 auto 0.8rem auto;
+            box-shadow: 0 8px 18px rgba(122, 0, 25, 0.18);
+        }
+
+        .profile-card {
+            background: white;
+            border: 1px solid #E8D9DD;
+            border-radius: 18px;
+            padding: 1.2rem;
+            box-shadow: 0 6px 16px rgba(122, 0, 25, 0.08);
+        }
+
+        .profile-name {
+            font-size: 1.3rem;
+            font-weight: 800;
+            color: #4B1020;
+            text-align: center;
+            margin-bottom: 0.25rem;
+        }
+
+        .profile-badge {
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+
+        .bio-item {
+            background: #FAF5F6;
+            border-radius: 12px;
+            padding: 0.75rem 0.9rem;
+            margin-bottom: 0.6rem;
+            border: 1px solid #F0DEE2;
+        }
+
+        .bio-label {
+            font-size: 0.8rem;
+            color: #8A6570;
+            margin-bottom: 0.2rem;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .bio-value {
+            color: #4B1020;
+            font-size: 0.96rem;
+            font-weight: 600;
+        }
+
+        div.stButton > button {
+            background-color: #7A0019;
+            color: white;
+            border-radius: 12px;
+            border: none;
+            font-weight: 700;
+        }
+
+        div.stButton > button:hover {
+            background-color: #5A0012;
+            color: white;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def hero_banner():
+    st.markdown(
+        """
+        <div class="hero-box">
+            <div class="hero-title">AKTI Internship Monitor</div>
+            <div class="hero-subtitle">
+                Sistem Digital Monitoring Pemagangan Mahasiswa Berbasis AI
+            </div>
+            <div class="hero-subtitle">
+                Tema kampus: maroon dan putih
+            </div>
+            <div class="hero-chip">Prototype ringan - Hari ke-7</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def section_title(text):
+    st.markdown(f"<div class='section-title'>{escape(str(text))}</div>", unsafe_allow_html=True)
+
+
+def normalize_text(value):
+    if pd.isna(value):
+        return "-"
+    value = str(value).strip()
+    return value if value else "-"
+
+
+def load_data(path, columns):
+    if os.path.exists(path):
+        df = pd.read_csv(path, encoding="utf-8-sig")
+        for col in columns:
+            if col not in df.columns:
+                df[col] = ""
+        return df[columns]
+    return pd.DataFrame(columns=columns)
+
+
+def prepare_logbook(df):
+    df_copy = df.copy()
+    if not df_copy.empty:
+        df_copy["tanggal"] = pd.to_datetime(df_copy["tanggal"], errors="coerce")
+        df_copy["progres"] = pd.to_numeric(df_copy["progres"], errors="coerce").fillna(0)
+        df_copy["kendala"] = df_copy["kendala"].fillna("").astype(str)
+        df_copy["kehadiran"] = df_copy["kehadiran"].fillna("").astype(str)
+    return df_copy
+
+
+def ada_kendala(teks):
+    teks = str(teks).strip().lower()
+    daftar_tidak_ada = ["", "-", "tidak ada", "aman", "none", "no", "nihil"]
+    return teks not in daftar_tidak_ada
+
+
+def ai_status_badge(status):
+    status = str(status)
+    if status == "Aman":
+        css_class = "status-pill status-aman"
+    elif status == "Perlu Perhatian":
+        css_class = "status-pill status-perhatian"
+    else:
+        css_class = "status-pill status-evaluasi"
+    return f"<span class='{css_class}'>{escape(status)}</span>"
+
+
+def campus_status_badge(status):
+    status = str(status)
+    if status.lower() == "aman":
+        css_class = "status-pill status-aman"
+    elif status.lower() in ["monitoring", "perlu perhatian"]:
+        css_class = "status-pill status-perhatian"
+    else:
+        css_class = "status-pill status-evaluasi"
+    return f"<span class='{css_class}'>{escape(status)}</span>"
+
+
+def analisis_status_mahasiswa(df_logbook, df_mahasiswa):
+    hasil = []
+
+    if df_logbook.empty:
+        return pd.DataFrame(
+            columns=[
+                "nama",
+                "divisi",
+                "pembimbing",
+                "jumlah_laporan",
+                "rata_progres",
+                "jumlah_kendala",
+                "jumlah_alpha",
+                "status_ai",
+                "rekomendasi",
+                "tanggal_terakhir",
+            ]
+        )
+
+    for nama, grup in df_logbook.groupby("nama"):
+        grup = grup.sort_values("tanggal")
+        data_terakhir = grup.iloc[-1]
+
+        jumlah_laporan = len(grup)
+        rata_progres = round(grup["progres"].mean(), 2)
+        jumlah_kendala = int(grup["kendala"].apply(ada_kendala).sum())
+        jumlah_alpha = int((grup["kehadiran"] == "Alpha").sum())
+        kendala_terakhir = str(data_terakhir["kendala"])
+        kehadiran_terakhir = str(data_terakhir["kehadiran"])
+        tanggal_terakhir = data_terakhir["tanggal"]
+
+        info_mahasiswa = df_mahasiswa[df_mahasiswa["nama"] == nama]
+        if not info_mahasiswa.empty:
+            divisi = info_mahasiswa.iloc[0]["divisi"]
+            pembimbing = info_mahasiswa.iloc[0]["pembimbing"]
+        else:
+            divisi = "-"
+            pembimbing = "-"
+
+        if jumlah_alpha >= 1 or rata_progres < 40:
+            status_ai = "Perlu Evaluasi"
+            rekomendasi = "Lakukan evaluasi langsung dengan pembimbing dan tinjau kembali target magang."
+        elif jumlah_kendala >= 2 or rata_progres < 70:
+            status_ai = "Perlu Perhatian"
+            rekomendasi = "Perlu monitoring lebih dekat dan pembinaan pada progres atau kendala mahasiswa."
+        else:
+            status_ai = "Aman"
+            rekomendasi = "Performa stabil. Pertahankan konsistensi pelaporan dan progres kerja."
+
+        if kehadiran_terakhir == "Alpha":
+            status_ai = "Perlu Evaluasi"
+            rekomendasi = "Terdapat status Alpha pada laporan terakhir. Segera lakukan evaluasi dengan pembimbing."
+        elif ada_kendala(kendala_terakhir) and status_ai == "Aman":
+            status_ai = "Perlu Perhatian"
+            rekomendasi = "Ada kendala pada laporan terakhir. Perlu tindak lanjut ringan dari pembimbing."
+
+        hasil.append(
+            {
+                "nama": nama,
+                "divisi": divisi,
+                "pembimbing": pembimbing,
+                "jumlah_laporan": jumlah_laporan,
+                "rata_progres": rata_progres,
+                "jumlah_kendala": jumlah_kendala,
+                "jumlah_alpha": jumlah_alpha,
+                "status_ai": status_ai,
+                "rekomendasi": rekomendasi,
+                "tanggal_terakhir": tanggal_terakhir,
+            }
+        )
+
+    df_hasil = pd.DataFrame(hasil)
+    prioritas = {"Perlu Evaluasi": 0, "Perlu Perhatian": 1, "Aman": 2}
+    df_hasil["urutan_status"] = df_hasil["status_ai"].map(prioritas)
+    df_hasil = df_hasil.sort_values(["urutan_status", "nama"]).drop(columns=["urutan_status"])
+    return df_hasil
+
+
+def ringkasan_terakhir(df_logbook, df_mahasiswa):
+    if df_logbook.empty:
+        return pd.DataFrame()
+
+    ringkasan = (
+        df_logbook.sort_values("tanggal")
+        .groupby("nama", as_index=False)
+        .tail(1)
+        .merge(df_mahasiswa[["nama", "divisi", "pembimbing"]], on="nama", how="left")
+        .sort_values("nama")
+    )
+
+    ringkasan["tanggal"] = pd.to_datetime(ringkasan["tanggal"], errors="coerce").dt.strftime("%Y-%m-%d")
+
+    return ringkasan[["nama", "divisi", "tanggal", "progres", "kehadiran", "kendala", "pembimbing"]]
+
+
+def student_initials(name):
+    words = [w for w in str(name).strip().split() if w]
+    if not words:
+        return "?"
+    if len(words) == 1:
+        return words[0][:2].upper()
+    return (words[0][0] + words[-1][0]).upper()
+
+
+def render_avatar_or_photo(foto_path, nama):
+    foto_path = str(foto_path).strip()
+    if foto_path:
+        if foto_path.startswith("http://") or foto_path.startswith("https://"):
+            st.image(foto_path, use_container_width=True)
+            return
+        if os.path.exists(foto_path):
+            st.image(foto_path, use_container_width=True)
+            return
+    initials = student_initials(nama)
+    st.markdown(
+        f"<div class='avatar-box'>{escape(initials)}</div>",
+        unsafe_allow_html=True,
+    )
+
+
+def bio_box(label, value):
+    st.markdown(
+        f"""
+        <div class='bio-item'>
+            <div class='bio-label'>{escape(str(label))}</div>
+            <div class='bio-value'>{escape(normalize_text(value))}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_student_cards(df_ai):
+    if df_ai.empty:
+        st.info("Belum ada data yang bisa dianalisis.")
+        return
+
+    for _, row in df_ai.iterrows():
+        tanggal = pd.to_datetime(row["tanggal_terakhir"], errors="coerce")
+        tanggal_str = "-" if pd.isna(tanggal) else tanggal.strftime("%Y-%m-%d")
+
+        st.markdown(
+            f"""
+            <div class="student-card">
+                <div class="student-header">
+                    <div>
+                        <div class="student-name">{escape(str(row["nama"]))}</div>
+                        <div class="student-meta">
+                            Divisi: {escape(str(row["divisi"]))} | Pembimbing: {escape(str(row["pembimbing"]))}
+                        </div>
+                    </div>
+                    <div>{ai_status_badge(row["status_ai"])}</div>
+                </div>
+
+                <div class="student-meta">
+                    Laporan: {escape(str(row["jumlah_laporan"]))} |
+                    Rata-rata progres: {escape(str(row["rata_progres"]))}% |
+                    Kendala: {escape(str(row["jumlah_kendala"]))} |
+                    Alpha: {escape(str(row["jumlah_alpha"]))} |
+                    Laporan terakhir: {escape(str(tanggal_str))}
+                </div>
+
+                <div class="student-rec">
+                    <strong>Rekomendasi:</strong> {escape(str(row["rekomendasi"]))}
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+
+load_custom_css()
+
+df_mahasiswa = load_data(MAHASISWA_PATH, MAHASISWA_COLUMNS)
+df_logbook = load_data(LOGBOOK_PATH, LOGBOOK_COLUMNS)
+df_logbook_olah = prepare_logbook(df_logbook)
+df_ai = analisis_status_mahasiswa(df_logbook_olah, df_mahasiswa)
+
+st.sidebar.title("Menu Aplikasi")
+menu = st.sidebar.radio(
+    "Pilih halaman",
+    ["Dashboard", "Input Logbook", "Analisis AI", "Data Mahasiswa", "Data Lengkap"],
+)
+
+st.sidebar.markdown("---")
+st.sidebar.write("**Identitas warna:** Maroon & Putih")
+st.sidebar.write("**Tahap project:** Hari ke-7")
+st.sidebar.write("**Fokus:** Data mahasiswa + profil")
+st.sidebar.write("**Mode:** Prototype ringan")
+
+hero_banner()
+
+if menu == "Dashboard":
+    section_title("Dashboard Utama")
+
+    total_mahasiswa = len(df_mahasiswa)
+    total_laporan = len(df_logbook_olah)
+    rata_progres_umum = round(df_logbook_olah["progres"].mean(), 2) if not df_logbook_olah.empty else 0
+    jumlah_hadir = int((df_logbook_olah["kehadiran"] == "Hadir").sum()) if not df_logbook_olah.empty else 0
+
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Total Mahasiswa", total_mahasiswa)
+    col2.metric("Total Laporan", total_laporan)
+    col3.metric("Rata-rata Progres", f"{rata_progres_umum}%")
+    col4.metric("Jumlah Hadir", jumlah_hadir)
+
+    col_a, col_b = st.columns([1.2, 1])
+
+    with col_a:
+        section_title("Ringkasan Laporan Terakhir")
+        df_ringkasan = ringkasan_terakhir(df_logbook_olah, df_mahasiswa)
+        if not df_ringkasan.empty:
+            st.dataframe(df_ringkasan, use_container_width=True)
+        else:
+            st.info("Belum ada data logbook.")
+
+    with col_b:
+        section_title("Mahasiswa Prioritas")
+        prioritas = df_ai[df_ai["status_ai"] != "Aman"].copy()
+        if not prioritas.empty:
+            for _, row in prioritas.head(3).iterrows():
+                st.markdown(
+                    f"""
+                    <div class="student-card">
+                        <div class="student-header">
+                            <div>
+                                <div class="student-name">{escape(str(row["nama"]))}</div>
+                                <div class="student-meta">{escape(str(row["divisi"]))}</div>
+                            </div>
+                            <div>{ai_status_badge(row["status_ai"])}</div>
+                        </div>
+                        <div class="student-meta">{escape(str(row["rekomendasi"]))}</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+        else:
+            st.success("Belum ada mahasiswa prioritas.")
+
+    section_title("Grafik Monitoring")
+    if not df_logbook_olah.empty:
+        col_g1, col_g2 = st.columns(2)
+        with col_g1:
+            st.subheader("Rata-rata Progres per Mahasiswa")
+            progres_per_mahasiswa = df_logbook_olah.groupby("nama")["progres"].mean().sort_values(ascending=False)
+            st.bar_chart(progres_per_mahasiswa)
+        with col_g2:
+            st.subheader("Jumlah Laporan per Mahasiswa")
+            laporan_per_mahasiswa = df_logbook_olah.groupby("nama").size().sort_values(ascending=False)
+            st.bar_chart(laporan_per_mahasiswa)
+    else:
+        st.info("Belum ada data untuk dibuat grafik.")
+
+elif menu == "Input Logbook":
+    section_title("Input Logbook Pemagangan")
+
+    daftar_nama = df_mahasiswa["nama"].dropna().tolist()
+    if len(daftar_nama) == 0:
+        st.warning("Data mahasiswa belum tersedia. Isi file mahasiswa.csv terlebih dahulu.")
+    else:
+        with st.form("form_logbook", clear_on_submit=True):
+            col_f1, col_f2 = st.columns(2)
+            with col_f1:
+                nama = st.selectbox("Nama Mahasiswa", daftar_nama)
+                tanggal = st.date_input("Tanggal", value=date.today())
+                progres = st.number_input("Progres Pekerjaan (%)", min_value=0, max_value=100, step=1)
+            with col_f2:
+                kehadiran = st.selectbox("Kehadiran", ["Hadir", "Izin", "Sakit", "Alpha"])
+                kegiatan = st.text_area("Kegiatan yang dilakukan")
+                kendala = st.text_area("Kendala")
+
+            submit = st.form_submit_button("Simpan Logbook")
+            if submit:
+                if kegiatan.strip() == "":
+                    st.warning("Kegiatan harus diisi.")
+                else:
+                    data_baru = {
+                        "nama": nama,
+                        "tanggal": str(tanggal),
+                        "kegiatan": kegiatan,
+                        "progres": progres,
+                        "kendala": kendala,
+                        "kehadiran": kehadiran,
+                    }
+                    df_baru = pd.DataFrame([data_baru])
+                    df_logbook = pd.concat([df_logbook, df_baru], ignore_index=True)
+                    df_logbook.to_csv(LOGBOOK_PATH, index=False)
+                    st.success("Logbook berhasil disimpan.")
+
+        df_logbook = load_data(LOGBOOK_PATH, LOGBOOK_COLUMNS)
+        df_logbook_olah = prepare_logbook(df_logbook)
+        section_title("5 Data Logbook Terbaru")
+        if not df_logbook_olah.empty:
+            tampil = df_logbook_olah.sort_values("tanggal", ascending=False).copy().head(5)
+            tampil["tanggal"] = pd.to_datetime(tampil["tanggal"], errors="coerce").dt.strftime("%Y-%m-%d")
+            st.dataframe(tampil, use_container_width=True)
+        else:
+            st.info("Belum ada data logbook.")
+
+elif menu == "Analisis AI":
+    section_title("Analisis AI dan Early Warning")
+    if not df_ai.empty:
+        jumlah_aman = int((df_ai["status_ai"] == "Aman").sum())
+        jumlah_perhatian = int((df_ai["status_ai"] == "Perlu Perhatian").sum())
+        jumlah_evaluasi = int((df_ai["status_ai"] == "Perlu Evaluasi").sum())
+
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Aman", jumlah_aman)
+        c2.metric("Perlu Perhatian", jumlah_perhatian)
+        c3.metric("Perlu Evaluasi", jumlah_evaluasi)
+
+        render_student_cards(df_ai)
+    else:
+        st.info("Belum ada data yang bisa dianalisis.")
+
+elif menu == "Data Mahasiswa":
+    section_title("Data Mahasiswa")
+
+    if df_mahasiswa.empty:
+        st.warning("Data mahasiswa belum tersedia.")
+    else:
+        col_top1, col_top2, col_top3 = st.columns([1.2, 1, 1])
+        with col_top1:
+            keyword = st.text_input("Cari nama atau NIM", "")
+        with col_top2:
+            daftar_divisi = ["Semua"] + sorted([x for x in df_mahasiswa["divisi"].dropna().unique().tolist() if str(x).strip()])
+            filter_divisi = st.selectbox("Filter divisi", daftar_divisi)
+        with col_top3:
+            daftar_status = ["Semua"] + sorted([x for x in df_mahasiswa["status"].dropna().unique().tolist() if str(x).strip()])
+            filter_status = st.selectbox("Filter status", daftar_status)
+
+        df_mahasiswa_filter = df_mahasiswa.copy()
+        if keyword.strip():
+            q = keyword.strip().lower()
+            df_mahasiswa_filter = df_mahasiswa_filter[
+                df_mahasiswa_filter["nama"].astype(str).str.lower().str.contains(q, na=False)
+                | df_mahasiswa_filter["nim"].astype(str).str.lower().str.contains(q, na=False)
+            ]
+        if filter_divisi != "Semua":
+            df_mahasiswa_filter = df_mahasiswa_filter[df_mahasiswa_filter["divisi"] == filter_divisi]
+        if filter_status != "Semua":
+            df_mahasiswa_filter = df_mahasiswa_filter[df_mahasiswa_filter["status"] == filter_status]
+
+        st.write(f"Jumlah mahasiswa ditampilkan: **{len(df_mahasiswa_filter)}**")
+
+        pilihan = df_mahasiswa_filter["nama"].tolist() if not df_mahasiswa_filter.empty else []
+        if pilihan:
+            nama_pilih = st.selectbox("Pilih mahasiswa untuk melihat profil", pilihan)
+            row = df_mahasiswa_filter[df_mahasiswa_filter["nama"] == nama_pilih].iloc[0]
+
+            col_kiri, col_kanan = st.columns([1, 2])
+            with col_kiri:
+                st.markdown("<div class='profile-card'>", unsafe_allow_html=True)
+                render_avatar_or_photo(row["foto"], row["nama"])
+                st.markdown(f"<div class='profile-name'>{escape(str(row['nama']))}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='profile-badge'>{campus_status_badge(row['status'])}</div>", unsafe_allow_html=True)
+                bio_box("NIM", row["nim"])
+                bio_box("Divisi", row["divisi"])
+                bio_box("Pembimbing", row["pembimbing"])
+                st.markdown("</div>", unsafe_allow_html=True)
+
+            with col_kanan:
+                st.markdown("<div class='profile-card'>", unsafe_allow_html=True)
+                st.subheader("Biodata Mahasiswa")
+                c1, c2 = st.columns(2)
+                with c1:
+                    bio_box("Email", row["email"])
+                    bio_box("No HP", row["no_hp"])
+                    bio_box("Jenis Kelamin", row["jenis_kelamin"])
+                    bio_box("Angkatan", row["angkatan"])
+                with c2:
+                    bio_box("Tempat Lahir", row["tempat_lahir"])
+                    bio_box("Tanggal Lahir", row["tanggal_lahir"])
+                    bio_box("Alamat", row["alamat"])
+                    bio_box("Foto", row["foto"])
+                st.markdown("</div>", unsafe_allow_html=True)
+
+            st.subheader("Tabel Data Mahasiswa")
+            tampil = df_mahasiswa_filter.copy()
+            st.dataframe(tampil, use_container_width=True)
+        else:
+            st.info("Tidak ada data mahasiswa yang cocok dengan filter.")
+
+elif menu == "Data Lengkap":
+    section_title("Data Lengkap dan Filter")
+    if not df_logbook_olah.empty:
+        colf1, colf2 = st.columns(2)
+        with colf1:
+            pilihan_nama = ["Semua"] + sorted(df_logbook_olah["nama"].dropna().unique().tolist())
+            filter_nama = st.selectbox("Filter Nama", pilihan_nama)
+        with colf2:
+            filter_kehadiran = st.selectbox("Filter Kehadiran", ["Semua", "Hadir", "Izin", "Sakit", "Alpha"])
+
+        df_filter = df_logbook_olah.copy()
+        if filter_nama != "Semua":
+            df_filter = df_filter[df_filter["nama"] == filter_nama]
+        if filter_kehadiran != "Semua":
+            df_filter = df_filter[df_filter["kehadiran"] == filter_kehadiran]
+
+        df_filter_tampil = df_filter.copy()
+        df_filter_tampil["tanggal"] = pd.to_datetime(df_filter_tampil["tanggal"], errors="coerce").dt.strftime("%Y-%m-%d")
+        st.subheader("Data Logbook Hasil Filter")
+        st.dataframe(df_filter_tampil, use_container_width=True)
+    else:
+        st.info("Belum ada data logbook.")
+
+    st.subheader("Data Mahasiswa")
+    st.dataframe(df_mahasiswa, use_container_width=True)
+
+    st.subheader("Data Logbook Lengkap")
+    if not df_logbook_olah.empty:
+        df_tampil = df_logbook_olah.copy()
+        df_tampil["tanggal"] = pd.to_datetime(df_tampil["tanggal"], errors="coerce").dt.strftime("%Y-%m-%d")
+        st.dataframe(df_tampil, use_container_width=True)
+    else:
+        st.dataframe(df_logbook, use_container_width=True)
